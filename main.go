@@ -179,19 +179,51 @@ var (
 			panicIfError(err)
 		},
 		"end": func(s *discordgo.Session, i *discordgo.InteractionCreate){
-
+			
 		},
 		"cancel": func(s *discordgo.Session, i *discordgo.InteractionCreate){
+			var jsonData map[string]structs.GuildData
 
+			utils.ReadJSONFile(jsonFile, &jsonData)
+
+			if jsonData[i.Interaction.GuildID].Creator == i.Interaction.Member.User.ID {
+				data := jsonData[i.Interaction.GuildID]
+				data.Ended = true
+				jsonData[i.Interaction.GuildID] = data
+
+
+				utils.WriteJSONFile(jsonFile, &jsonData)
+
+				err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+					Type: discordgo.InteractionResponseChannelMessageWithSource,
+					Data: &discordgo.InteractionResponseData{
+						Content: 	"Event ended successfully!",
+						Flags:		discordgo.MessageFlagsEphemeral,
+					},
+				})
+
+				panicIfError(err)
+			} else {
+				err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+					Type: discordgo.InteractionResponseChannelMessageWithSource,
+					Data: &discordgo.InteractionResponseData{
+						Content: 	"You must be the creator of the event to cancel it!",
+						Flags:		discordgo.MessageFlagsEphemeral,
+					},
+				})
+
+				panicIfError(err)
+			}
 		},
 		"register": func(s *discordgo.Session, i *discordgo.InteractionCreate){
+			// make sure user isn't registered yet
 
 		},
 		"unregister": func(s *discordgo.Session, i *discordgo.InteractionCreate){
-
+			// make sure user is registered
 		},
 		"edit": func(s *discordgo.Session, i *discordgo.InteractionCreate){
-
+			// make sure event exists and isn't ended
 		},
 	}
 )

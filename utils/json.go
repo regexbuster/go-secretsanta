@@ -40,7 +40,7 @@ func IsEventStarted(fileName string, guildID string) bool {
 	var jsonData map[string]structs.GuildData
 	ReadJSONFile(fileName, &jsonData)
 
-	_, ok := jsonData[guildID]
+	data, ok := jsonData[guildID]
 
-	return ok
+	return ok && !data.Ended
 }
