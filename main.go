@@ -527,7 +527,8 @@ func main() {
 
 	// register slash commands
 	for _, cmd := range commands {
-		rcmd, err := s.ApplicationCommandCreate(*AppID, *GuildID, &cmd)
+		// rcmd, err := s.ApplicationCommandCreate(*AppID, *GuildID, &cmd)
+		rcmd, err := s.ApplicationCommandCreate(*AppID, "", &cmd)
 
 		if err != nil {
 			log.Fatalf("Cannot create slash commands %q: %v", cmd.Name, err)
@@ -555,7 +556,8 @@ func main() {
 
 	// unregister slash commands
 	for id, name := range cmdIDs {
-		err := s.ApplicationCommandDelete(*AppID, *GuildID, id)
+		// err := s.ApplicationCommandDelete(*AppID, *GuildID, id)
+		err := s.ApplicationCommandDelete(*AppID, "", id)
 		if err != nil {
 			log.Fatalf("Cannot delete slash command %q: %v", name, err)
 		}
