@@ -31,6 +31,9 @@ func WriteJSONFile[T any](fileName string, data *map[string]T) {
 	Check(err)
 	defer file.Close()
 
+	file.Truncate(0)
+	file.Seek(0,0)
+
 	encoder := json.NewEncoder(file)
 	err = encoder.Encode(*data)
 	Check(err)
@@ -43,4 +46,28 @@ func IsEventStarted(fileName string, guildID string) bool {
 	data, ok := jsonData[guildID]
 
 	return ok && !data.Ended
+}
+
+func IsEventEnded(fileName string, guildID string) bool {
+	var jsonData map[string]structs.GuildData
+	ReadJSONFile(fileName, &jsonData)
+
+	data, ok := jsonData[guildID]
+
+	return ok && data.Ended
+}
+
+func IsUserRegistered(fileName string, guildID string, userID string) bool {
+	var jsonData map[string]structs.GuildData
+	ReadJSONFile(fileName, &jsonData)
+
+	data, ok := jsonData[guildID]
+
+	if !ok {
+		return false
+	}
+
+	_, userOk := data.Responses[userID]
+
+	return userOk
 }

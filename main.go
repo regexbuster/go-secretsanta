@@ -217,10 +217,129 @@ var (
 		},
 		"register": func(s *discordgo.Session, i *discordgo.InteractionCreate){
 			// make sure user isn't registered yet
+			isEnded := utils.IsEventEnded(jsonFile, i.Interaction.GuildID)
+
+			if isEnded {
+				err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+					Type: discordgo.InteractionResponseChannelMessageWithSource,
+					Data: &discordgo.InteractionResponseData{
+						Content: 	"This event has already ended you cannot register.",
+						Flags:		discordgo.MessageFlagsEphemeral,
+					},
+				})
+
+				panicIfError(err)
+
+				return
+			}
+			
+			isRegistered := utils.IsUserRegistered(jsonFile, i.Interaction.GuildID, i.Interaction.Member.User.ID)
+
+			if isRegistered {
+				err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+					Type: discordgo.InteractionResponseChannelMessageWithSource,
+					Data: &discordgo.InteractionResponseData{
+						Content: 	"You have already registered for this event.",
+						Flags:		discordgo.MessageFlagsEphemeral,
+					},
+				})
+
+				panicIfError(err)
+
+				return
+			}
+
+			err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+				Type: discordgo.InteractionResponseModal,
+				Data: &discordgo.InteractionResponseData{
+					CustomID: "register_modal_" + i.Interaction.Member.User.ID,
+					Title: "Register for Secret Santa",
+					Components: []discordgo.MessageComponent{
+						discordgo.ActionsRow{
+							Components: []discordgo.MessageComponent{
+								discordgo.TextInput{
+									CustomID:		"name",
+									Label:			"Name?",
+									Style:			discordgo.TextInputParagraph,
+									Placeholder:	"John Doe",
+									Required:		true,
+									MaxLength:		100,
+									MinLength:		1,
+								},
+							},
+						},
+						discordgo.ActionsRow{
+							Components: []discordgo.MessageComponent{
+								discordgo.TextInput{
+									CustomID:		"wishlist",
+									Label:			"Wishlist: (Include Gift Ideas and Allergies)",
+									Style:			discordgo.TextInputParagraph,
+									Placeholder:	"Red\nM&Ms\nPibb\nFive Guys\nGames\nKanye West\nBengals\nNemo\nCat Posters\nAllergic to nuts\nNo mugs",
+									Required:		true,
+									MaxLength:		1000,
+									MinLength:		1,
+								},
+							},
+						},
+					},
+				},
+			})
+
+			panicIfError(err)
 
 		},
 		"unregister": func(s *discordgo.Session, i *discordgo.InteractionCreate){
 			// make sure user is registered
+
+			isEnded := utils.IsEventEnded(jsonFile, i.Interaction.GuildID)
+
+			if isEnded {
+				err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+					Type: discordgo.InteractionResponseChannelMessageWithSource,
+					Data: &discordgo.InteractionResponseData{
+						Content: 	"This event has already ended you cannot unregister.",
+						Flags:		discordgo.MessageFlagsEphemeral,
+					},
+				})
+
+				panicIfError(err)
+
+				return
+			}
+
+			isRegistered := utils.IsUserRegistered(jsonFile, i.Interaction.GuildID, i.Interaction.Member.User.ID)
+
+			if !isRegistered {
+				err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+					Type: discordgo.InteractionResponseChannelMessageWithSource,
+					Data: &discordgo.InteractionResponseData{
+						Content: 	"You need to register before you can unregister from an event.",
+						Flags:		discordgo.MessageFlagsEphemeral,
+					},
+				})
+
+				panicIfError(err)
+
+				return
+			}
+
+			var jsonData map[string]structs.GuildData
+
+			utils.ReadJSONFile(jsonFile, &jsonData)
+
+			delete(jsonData[i.GuildID].Responses, i.Interaction.Member.User.ID)
+
+			utils.WriteJSONFile(jsonFile, &jsonData)
+
+			err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+				Type: discordgo.InteractionResponseChannelMessageWithSource,
+				Data: &discordgo.InteractionResponseData{
+					Content: 	"You have been unregistered.",
+					Flags:		discordgo.MessageFlagsEphemeral,
+				},
+			})
+
+			panicIfError(err)
 		},
 		"edit": func(s *discordgo.Session, i *discordgo.InteractionCreate){
 			// make sure event exists and isn't ended
@@ -244,14 +363,6 @@ func main() {
 			}
 			// when modal submitted
 		case discordgo.InteractionModalSubmit:
-			err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-				Type: discordgo.InteractionResponseChannelMessageWithSource,
-				Data: &discordgo.InteractionResponseData{
-					Content:	"Thank you for setting up a new event!",
-					Flags:		discordgo.MessageFlagsEphemeral,
-				},
-			})
-
 			data := i.ModalSubmitData()
 
 			if strings.HasPrefix(data.CustomID, "start_modal"){
@@ -265,7 +376,7 @@ func main() {
 						Deadline: data.Components[3].(*discordgo.ActionsRow).Components[0].(*discordgo.TextInput).Value,
 						Notes: data.Components[4].(*discordgo.ActionsRow).Components[0].(*discordgo.TextInput).Value,
 					},
-					Responses: make(map[string]string),
+					Responses: make(map[string]structs.UserData),
 					Santas: make(map[string]string),
 					Ended: false,
 				} 
@@ -334,12 +445,6 @@ func main() {
 									Style: discordgo.DangerButton,
 									Disabled: false,
 								},
-								discordgo.Button{
-									CustomID: "wishlist_" + i.Interaction.Member.User.ID,
-									Label: "Wishlist",
-									Style: discordgo.PrimaryButton,
-									Disabled: false,
-								},
 							},
 						},
 					},
@@ -355,13 +460,65 @@ func main() {
 
 				jsonData[i.GuildID] = curGuildData
 
-				utils.WriteJSONFile(jsonFile, &jsonData)				
+				utils.WriteJSONFile(jsonFile, &jsonData)
+				
+				err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+					Type: discordgo.InteractionResponseChannelMessageWithSource,
+					Data: &discordgo.InteractionResponseData{
+						Content:	"Thank you for setting up a new event!",
+						Flags:		discordgo.MessageFlagsEphemeral,
+					},
+				})
+
+				panicIfError(err)
 			}
 
-			panicIfError(err)
+			if strings.HasPrefix(data.CustomID, "register_modal"){
+				userData := structs.UserData{
+					Name: data.Components[0].(*discordgo.ActionsRow).Components[0].(*discordgo.TextInput).Value,
+					Wishlist: data.Components[1].(*discordgo.ActionsRow).Components[0].(*discordgo.TextInput).Value,
+				}
+
+				var jsonData map[string]structs.GuildData
+
+				utils.ReadJSONFile(jsonFile, &jsonData)
+
+				guildData := jsonData[i.GuildID]
+
+				guildData.Responses[i.Member.User.ID] = userData
+
+				utils.WriteJSONFile(jsonFile, &jsonData)	
+
+				err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+					Type: discordgo.InteractionResponseChannelMessageWithSource,
+					Data: &discordgo.InteractionResponseData{
+						Content:	"Thank you for registering!",
+						Flags:		discordgo.MessageFlagsEphemeral,
+					},
+				})
+
+				panicIfError(err)
+			}
+
 			// interactions with messages (ie button presses)
 		case discordgo.InteractionMessageComponent:
-			// data := i.MessageComponentData()
+			data := i.MessageComponentData()
+
+			switch strings.Split(data.CustomID, "_")[0]{
+			case "register":
+				if h, ok := commandsHandlers["register"]; ok {
+					h(s,i)
+				}
+			case "unregister":
+				if h, ok := commandsHandlers["unregister"]; ok {
+					h(s,i)
+				}
+			case "wishlist":
+				if h, ok := commandsHandlers["wishlist"]; ok {
+					h(s,i)
+				}
+			}
+
 			return;
 		}
 	})
