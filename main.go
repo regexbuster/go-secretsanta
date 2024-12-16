@@ -9,6 +9,8 @@ import (
 	"strings"
 	// "strconv"
 
+	"math/rand/v2"
+
 	"secretsanta/structs"
 	"secretsanta/utils"
 
@@ -179,6 +181,22 @@ var (
 			panicIfError(err)
 		},
 		"end": func(s *discordgo.Session, i *discordgo.InteractionCreate){
+			isCreator := utils.IsCallerCreator(jsonFile, i.GuildID, i.Member.User.ID)
+			
+			if !isCreator {
+				err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+					Type: discordgo.InteractionResponseChannelMessageWithSource,
+					Data: &discordgo.InteractionResponseData{
+						Content: 	"Only the creator can end the event.",
+						Flags:		discordgo.MessageFlagsEphemeral,
+					},
+				})
+
+				panicIfError(err)
+
+				return
+			}
+
 			isStarted := utils.IsEventStarted(jsonFile, i.GuildID)
 			
 			if !isStarted {
@@ -211,11 +229,24 @@ var (
 
 			var people []string
 
+			// get ids
 			for j, _ := range jsonData[i.GuildID].Responses {
 				people = append(people, j)
 			}
 
-			for j, _ := range people {
+			// shuffle
+			for i := 0; i < len(people); i++ {
+				for j := 0; j < 5; j++ {
+					r := rand.IntN(len(people))
+		
+					val := people[r]
+					people[r] = people[i]
+					people[i] = val
+				}
+			}
+
+			// send dms
+			for j, v := range people {
 				var recipientID string 
 
 				if len(people) <= (j + 1) {
@@ -224,7 +255,7 @@ var (
 					recipientID = people[j + 1]
 				}
 
-				dmChannel, dmErr := s.UserChannelCreate(recipientID)
+				dmChannel, dmErr := s.UserChannelCreate(v)
 				utils.Check(dmErr)
 
 				_, err := s.ChannelMessageSendEmbed(dmChannel.ID, &discordgo.MessageEmbed{
@@ -236,12 +267,12 @@ var (
 						{
 							Name: "Gift Recipient",
 							Value: jsonData[i.GuildID].Responses[recipientID].Name,
-							Inline: true,
+							Inline: false,
 						},
 						{
 							Name: "Wishlist",
-							Value: jsonData[i.GuildID].Responses[recipientID].Name,
-							Inline: true,
+							Value: jsonData[i.GuildID].Responses[recipientID].Wishlist,
+							Inline: false,
 						},
 					},
 					Footer: &discordgo.MessageEmbedFooter{
@@ -249,7 +280,16 @@ var (
 					},
 				})
 				utils.Check(err)
+
+				jsonData[i.GuildID].Santas[v] = recipientID
 			}
+
+			// because I can't just assign the bool false 
+			jData := jsonData[i.GuildID]
+			jData.Ended = true
+			jsonData[i.GuildID] = jData
+
+			utils.WriteJSONFile(jsonFile, &jsonData)
 
 		},
 		"cancel": func(s *discordgo.Session, i *discordgo.InteractionCreate){

@@ -39,6 +39,15 @@ func WriteJSONFile[T any](fileName string, data *map[string]T) {
 	Check(err)
 }
 
+func IsCallerCreator(fileName string, guildID string, callerID string) bool {
+	var jsonData map[string]structs.GuildData
+	ReadJSONFile(fileName, &jsonData)
+
+	data, ok := jsonData[guildID]
+
+	return ok && (data.Creator == callerID)
+}
+
 func IsEventStarted(fileName string, guildID string) bool {
 	var jsonData map[string]structs.GuildData
 	ReadJSONFile(fileName, &jsonData)
