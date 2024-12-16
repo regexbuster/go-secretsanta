@@ -179,7 +179,78 @@ var (
 			panicIfError(err)
 		},
 		"end": func(s *discordgo.Session, i *discordgo.InteractionCreate){
+			isStarted := utils.IsEventStarted(jsonFile, i.GuildID)
 			
+			if !isStarted {
+				err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+					Type: discordgo.InteractionResponseChannelMessageWithSource,
+					Data: &discordgo.InteractionResponseData{
+						Content: 	"No event has started.",
+						Flags:		discordgo.MessageFlagsEphemeral,
+					},
+				})
+
+				panicIfError(err)
+
+				return
+			}
+
+			err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+				Type: discordgo.InteractionResponseChannelMessageWithSource,
+				Data: &discordgo.InteractionResponseData{
+					Content: 	"Event has ended and DMs will be sent.",
+					Flags:		discordgo.MessageFlagsEphemeral,
+				},
+			})
+
+			panicIfError(err)
+
+			var jsonData map[string]structs.GuildData
+
+			utils.ReadJSONFile(jsonFile, &jsonData)
+
+			var people []string
+
+			for j, _ := range jsonData[i.GuildID].Responses {
+				people = append(people, j)
+			}
+
+			for j, _ := range people {
+				var recipientID string 
+
+				if len(people) <= (j + 1) {
+					recipientID = people[0]
+				} else {
+					recipientID = people[j + 1]
+				}
+
+				dmChannel, dmErr := s.UserChannelCreate(recipientID)
+				utils.Check(dmErr)
+
+				_, err := s.ChannelMessageSendEmbed(dmChannel.ID, &discordgo.MessageEmbed{
+					Type: "rich",
+					Title: "You're the Secret Santa for:",
+					Description: "",
+					Color: 3447003,
+					Fields: []*discordgo.MessageEmbedField{
+						{
+							Name: "Gift Recipient",
+							Value: jsonData[i.GuildID].Responses[recipientID].Name,
+							Inline: true,
+						},
+						{
+							Name: "Wishlist",
+							Value: jsonData[i.GuildID].Responses[recipientID].Name,
+							Inline: true,
+						},
+					},
+					Footer: &discordgo.MessageEmbedFooter{
+						Text: "Built by regexbuster",
+					},
+				})
+				utils.Check(err)
+			}
+
 		},
 		"cancel": func(s *discordgo.Session, i *discordgo.InteractionCreate){
 			var jsonData map[string]structs.GuildData
