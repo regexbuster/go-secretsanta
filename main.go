@@ -9,7 +9,7 @@ import (
 	"strings"
 	// "strconv"
 
-	"math/rand/v2"
+	"math/rand"
 
 	"secretsanta/structs"
 	"secretsanta/utils"
