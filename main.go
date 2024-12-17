@@ -237,7 +237,7 @@ var (
 			// shuffle
 			for i := 0; i < len(people); i++ {
 				for j := 0; j < 5; j++ {
-					r := rand.IntN(len(people))
+					r := rand.Intn(len(people))
 		
 					val := people[r]
 					people[r] = people[i]
